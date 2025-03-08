@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Call Center{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Statistics Cards -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Total Calls</h5>
+                <h2 class="card-text" id="total-calls">{{ stats.total_calls if stats else 0 }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Average Duration</h5>
+                <h2 class="card-text" id="avg-duration">{{ stats.average_duration if stats else 0 }}s</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Total Messages</h5>
+                <h2 class="card-text" id="total-messages">{{ stats.total_messages if stats else 0 }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Calls Over Time</h5>
+                <canvas id="calls-chart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Sentiment Analysis</h5>
+                <canvas id="sentiment-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Calls Table -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Recent Calls</h5>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Call ID</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th>Sentiment</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-calls">
+                            {% if recent_calls %}
+                                {% for call in recent_calls %}
+                                <tr>
+                                    <td>{{ call.simulation_id }}</td>
+                                    <td>{{ call.duration }}s</td>
+                                    <td>{{ call.status }}</td>
+                                    <td>{{ call.sentiment_score }}</td>
+                                    <td>
+                                        <a href="/calls/{{ call.simulation_id }}" class="btn btn-sm btn-primary">View</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No calls available</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialize charts
+const callsChart = new Chart(document.getElementById('calls-chart'), {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [{
+            label: 'Calls',
+            data: [],
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1
+        }]
+    }
+});
+
+const sentimentChart = new Chart(document.getElementById('sentiment-chart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Positive', 'Neutral', 'Negative'],
+        datasets: [{
+            data: [0, 0, 0],
+            backgroundColor: ['#28a745', '#ffc107', '#dc3545']
+        }]
+    }
+});
+
+function updateCallsChart(data) {
+    callsChart.data.labels = data.labels;
+    callsChart.data.datasets[0].data = data.values;
+    callsChart.update();
+}
+
+function updateSentimentChart(data) {
+    sentimentChart.data.datasets[0].data = [
+        data.positive,
+        data.neutral,
+        data.negative
+    ];
+    sentimentChart.update();
+}
+</script>
+{% endblock %} 

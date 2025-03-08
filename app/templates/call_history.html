@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Call History - AI Call Center{% endblock %}
+
+{% block extra_css %}
+<style>
+.call-filters {
+    margin-bottom: 20px;
+}
+
+.call-card {
+    margin-bottom: 15px;
+    transition: transform 0.2s;
+}
+
+.call-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.call-tags {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.call-tag {
+    font-size: 0.8rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background-color: #e9ecef;
+}
+
+.tag-success { background-color: #d4edda; color: #155724; }
+.tag-warning { background-color: #fff3cd; color: #856404; }
+.tag-danger { background-color: #f8d7da; color: #721c24; }
+
+.call-metrics {
+    display: flex;
+    gap: 15px;
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-top: 10px;
+}
+
+.call-note {
+    font-size: 0.9rem;
+    font-style: italic;
+    color: #6c757d;
+    margin-top: 10px;
+    padding: 8px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Filters -->
+    <div class="call-filters">
+        <div class="row">
+            <div class="col-md-3">
+                <select class="form-select" id="dateFilter">
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="all">All Time</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="statusFilter">
+                    <option value="all">All Status</option>
+                    <option value="completed">Completed</option>
+                    <option value="transferred">Transferred</option>
+                    <option value="missed">Missed</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <input type="text" class="form-control" id="searchInput" placeholder="Search calls...">
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" id="exportBtn">
+                    <i class="fas fa-download"></i> Export
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call List -->
+    <div id="callList">
+        {% for call in calls %}
+        <div class="card call-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="card-title">Call #{{ call.simulation_id }}</h5>
+                        <p class="card-text">
+                            Duration: {{ call.duration }}s
+                            <span class="ms-3">Messages: {{ call.message_count }}</span>
+                        </p>
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewCallDetails('{{ call.simulation_id }}')">
+                            View Details
+                        </button>
+                    </div>
+                </div>
+
+                <div class="call-tags">
+                    {% for tag in call.tags %}
+                    <span class="call-tag tag-{{ tag.type }}">{{ tag.name }}</span>
+                    {% endfor %}
+                </div>
+
+                <div class="call-metrics">
+                    <span>
+                        <i class="fas fa-signal"></i> Quality: {{ call.quality_metrics.quality_score }}%
+                    </span>
+                    <span>
+                        <i class="fas fa-clock"></i> Latency: {{ call.quality_metrics.latency }}ms
+                    </span>
+                    <span>
+                        <i class="fas fa-exclamation-triangle"></i> Packet Loss: {{ call.quality_metrics.packet_loss }}%
+                    </span>
+                </div>
+
+                {% if call.note %}
+                <div class="call-note">
+                    <i class="fas fa-sticky-note"></i> {{ call.note }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Call Details Modal -->
+    <div class="modal fade" id="callDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Call Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="callDetails"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function viewCallDetails(simulationId) {
+    fetch(`/api/simulate/${simulationId}/details`)
+        .then(response => response.json())
+        .then(data => {
+            const detailsHtml = generateCallDetailsHtml(data);
+            document.getElementById('callDetails').innerHTML = detailsHtml;
+            new bootstrap.Modal(document.getElementById('callDetailsModal')).show();
+        })
+        .catch(error => console.error('Error fetching call details:', error));
+}
+
+function generateCallDetailsHtml(data) {
+    const messages = data.messages.map(msg => `
+        <div class="message ${msg.role === 'user' ? 'user-message' : 'assistant-message'}">
+            <div class="message-content">${msg.content}</div>
+            <div class="message-time">${new Date(msg.timestamp).toLocaleString()}</div>
+        </div>
+    `).join('');
+
+    return `
+        <div class="call-info mb-3">
+            <h6>Call Information</h6>
+            <p>
+                Start Time: ${new Date(data.start_time).toLocaleString()}<br>
+                Duration: ${data.duration}s<br>
+                Status: ${data.is_active ? 'Active' : 'Completed'}<br>
+                Recording: ${data.is_recording ? 'Yes' : 'No'}
+            </p>
+        </div>
+        <div class="quality-info mb-3">
+            <h6>Quality Metrics</h6>
+            <p>
+                Overall Score: ${data.quality_metrics.quality_score}%<br>
+                Latency: ${data.quality_metrics.latency}ms<br>
+                Packet Loss: ${data.quality_metrics.packet_loss}%<br>
+                Jitter: ${data.quality_metrics.jitter}ms
+            </p>
+        </div>
+        <div class="conversation mb-3">
+            <h6>Conversation</h6>
+            <div class="messages">
+                ${messages}
+            </div>
+        </div>
+    `;
+}
+
+// Filter functionality
+document.getElementById('dateFilter').addEventListener('change', updateCallList);
+document.getElementById('statusFilter').addEventListener('change', updateCallList);
+document.getElementById('searchInput').addEventListener('input', updateCallList);
+
+function updateCallList() {
+    const dateFilter = document.getElementById('dateFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    const searchQuery = document.getElementById('searchInput').value;
+
+    fetch('/api/calls/filter', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            date_filter: dateFilter,
+            status_filter: statusFilter,
+            search_query: searchQuery
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Update call list with filtered data
+        const callList = document.getElementById('callList');
+        // ... update call list HTML ...
+    })
+    .catch(error => console.error('Error filtering calls:', error));
+}
+
+// Export functionality
+document.getElementById('exportBtn').addEventListener('click', () => {
+    fetch('/api/calls/export')
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `call-history-${new Date().toISOString()}.csv`;
+            a.click();
+        })
+        .catch(error => console.error('Error exporting calls:', error));
+});
+</script>
+{% endblock %} 
